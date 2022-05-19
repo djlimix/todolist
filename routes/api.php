@@ -21,8 +21,14 @@ use Illuminate\Support\Facades\Route;
 Route::post('register', RegisterController::class)->middleware('guest');
 Route::post('login', LoginController::class)->middleware('guest');
 
-Route::apiResource('category', CategoriesController::class)->middleware('auth:sanctum');
+Route::group(['middleware' => 'auth:sanctum'], function() {
+    Route::apiResource('category', CategoriesController::class);
+    Route::post('category/{category}/restore', [CategoriesController::class, 'restore']);
 
-Route::post('todo/{todo}/done', [TodosController::class, 'markAsDone'])->middleware(['auth:sanctum', 'can:update,todo']);
-Route::post('todo/{todo}/share', [TodosController::class, 'share'])->middleware(['auth:sanctum', 'can:update,todo']);
-Route::apiResource('todo', TodosController::class)->middleware('auth:sanctum');
+    Route::group(['prefix' => 'todo'], function() {
+        Route::post('{todo}/markAs', [TodosController::class, 'markAs']);
+        Route::post('{todo}/share', [TodosController::class, 'share']);
+        Route::post('{post}/restore', [TodosController::class, 'restore']);
+    });
+    Route::apiResource('todo', TodosController::class);
+});

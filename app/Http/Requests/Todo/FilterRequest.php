@@ -9,7 +9,15 @@ class FilterRequest extends FormRequest {
         return [
             'filter'      => ['sometimes', 'in:mine,shared_with_me'],
             'done'        => ['sometimes', 'in:0,1'],
-            'category_id' => ['sometimes', 'exists:category,id']
+            'category_id' => ['sometimes', 'exists:categories,id']
+        ];
+    }
+
+    public function messages(): array {
+        return [
+            'filter.in'          => 'Nesprávny typ filtra.',
+            'done.in'            => 'Nesprávny typ filtra.',
+            'category_id.exists' => 'Táto kategória neexistuje.'
         ];
     }
 }

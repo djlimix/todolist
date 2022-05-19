@@ -14,7 +14,7 @@ class CategoriesController extends Controller {
      * @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection
      */
     public function index() {
-        $categories = auth()->user()->categories;
+        $categories = Category::select('id', 'name')->get();
 
         return CategoryResource::collection($categories);
     }
@@ -25,7 +25,7 @@ class CategoriesController extends Controller {
      * @return CategoryResource
      */
     public function store(CreateCategoryRequest $request): CategoryResource {
-        $category = auth()->user()->categories()->create($request->validated());
+        $category = Category::create($request->validated());
 
         return new CategoryResource($category);
     }
@@ -33,15 +33,12 @@ class CategoriesController extends Controller {
     /**
      * @param Category $category
      *
-     * @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection
-     * @throws \Illuminate\Auth\Access\AuthorizationException
+     * @return CategoryResource
      */
-    public function show(Category $category) {
-        $this->authorize('view', $category);
-
+    public function show(Category $category): CategoryResource {
         $category->load('todos');
 
-        return TodoResource::collection($category->todos);
+        return new CategoryResource($category);
     }
 
     /**
@@ -63,13 +60,27 @@ class CategoriesController extends Controller {
      * @throws \Illuminate\Auth\Access\AuthorizationException
      */
     public function destroy(Category $category): JsonResponse {
-        $this->authorize('delete', $category);
-
         $category->delete();
 
         return response()->json([
             'error' => false,
             'msg'   => 'Successfully deleted'
+        ]);
+    }
+
+    /**
+     * @param Category $category
+     *
+     * @return JsonResponse
+     * @throws \Illuminate\Auth\Access\AuthorizationException
+     */
+    public function restore(Category $category): JsonResponse {
+        $category->restore();
+
+        return response()->json([
+            'error'    => false,
+            'msg'      => 'Successfully restored',
+            'category' => new CategoryResource($category)
         ]);
     }
 }

@@ -11,4 +11,10 @@ class CreateTodoRequest extends FormRequest {
             'category_id' => ['required', 'numeric', 'exists:categories,id']
         ];
     }
+
+    public function messages(): array {
+        return [
+            'category_id.exists' => 'Táto kategória neexistuje.'
+        ];
+    }
 }

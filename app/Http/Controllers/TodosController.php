@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\Todo\CreateTodoRequest;
 use App\Http\Requests\Todo\FilterRequest;
+use App\Http\Requests\Todo\MarkAsTodoRequest;
 use App\Http\Requests\Todo\ShareTodoRequest;
 use App\Http\Requests\Todo\UpdateTodoRequest;
 use App\Http\Resources\TodoResource;
@@ -11,13 +12,17 @@ use App\Models\Todo;
 use Illuminate\Http\JsonResponse;
 
 class TodosController extends Controller {
+    public function __construct() {
+        $this->middleware('can:update,post')->only('markAs', 'share');
+    }
+
     /**
      * @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection
      */
     public function index(FilterRequest $request) {
         $todos = match ($request->filter) {
             'mine', null => auth()->user()->todos()->with('category'),
-            'shared_with_me' => auth()->user()->todos_shared_with_me()->with('category', 'user'),
+            'shared_with_me' => auth()->user()->todosSharedWithMe()->with('category', 'user'),
         };
 
         if ($request->has('done')) {
@@ -36,11 +41,7 @@ class TodosController extends Controller {
      *
      * @return TodoResource
      */
-    public function store(CreateTodoRequest $request) {
-        if (auth()->user()->categories()->whereId($request->category_id)->doesntExist()) {
-            return abort(404);
-        }
-
+    public function store(CreateTodoRequest $request): TodoResource {
         $todo = auth()->user()->todos()->create($request->validated());
 
         return new TodoResource($todo);
@@ -52,8 +53,10 @@ class TodosController extends Controller {
      * @return TodoResource
      * @throws \Illuminate\Auth\Access\AuthorizationException
      */
-    public function show(Todo $todo) {
+    public function show(Todo $todo): TodoResource {
         $this->authorize('view', $todo);
+
+        $todo->load('category');
 
         return new TodoResource($todo);
     }
@@ -65,7 +68,7 @@ class TodosController extends Controller {
      * @return TodoResource
      * @throws \Illuminate\Auth\Access\AuthorizationException
      */
-    public function update(UpdateTodoRequest $request, Todo $todo) {
+    public function update(UpdateTodoRequest $request, Todo $todo): TodoResource {
         $this->authorize('update', $todo);
 
         $todo->update($request->validated());
@@ -92,17 +95,23 @@ class TodosController extends Controller {
 
     /**
      * @param Todo $todo
+     * @param MarkAsTodoRequest $request
      *
      * @return JsonResponse
      */
-    public function markAsDone(Todo $todo): JsonResponse {
+    public function markAs(Todo $todo, MarkAsTodoRequest $request): JsonResponse {
+        $mark_as = match ($request->validated('mark_as')) {
+            'not_done' => 0,
+            'done' => 1
+        };
+
         $todo->update([
-            'done' => '1'
+            'done' => $mark_as
         ]);
 
         return response()->json([
             'error' => false,
-            'msg'   => 'Successfully marked as done',
+            'msg'   => 'Successfully marked as '.str_replace('_', ' ', $request->validated('mark_as')),
             'todo'  => new TodoResource($todo)
         ]);
     }
@@ -116,13 +125,34 @@ class TodosController extends Controller {
     public function share(Todo $todo, ShareTodoRequest $request): JsonResponse {
         $share_with_id = $request->validated('share_with_id');
 
-        if ($todo->shares()->whereUserId($share_with_id)->doesntExist()) {
-            $todo->shares()->attach($share_with_id);
+        if ($todo->sharedWithUsers()->whereUserId($share_with_id)->doesntExist()) {
+            $todo->sharedWithUsers()->attach($share_with_id);
         }
 
         return response()->json([
             'error' => false,
             'msg'   => 'Shared successfully'
+        ]);
+    }
+
+    /**
+     *
+     * @param int $id
+     *
+     * @return JsonResponse
+     * @throws \Illuminate\Auth\Access\AuthorizationException
+     */
+    public function restore(int $id): JsonResponse {
+        $todo = Todo::withTrashed()->findOrFail($id);
+
+        $this->authorize('restore', $todo);
+
+        $todo->restore();
+
+        return response()->json([
+            'error' => false,
+            'msg'   => 'Successfully restored',
+            'todo'  => new TodoResource($todo)
         ]);
     }
 }
